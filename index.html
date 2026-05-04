@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Repeating Alarm SPA</title>
+  <style>
+    body { font-family: system-ui; text-align: center; padding: 2rem; }
+    button { font-size: 1.2rem; padding: 1rem 2rem; margin: 1rem; }
+    .active { background: #f44; color: white; }
+  </style>
+</head>
+<body>
+  <h1>⏰ Repeating Alarm</h1>
+  <label for="interval">Every (seconds):</label>
+  <input id="interval" type="number" value="5" min="1" step="1" />
+  <br /><br />
+  <button id="startBtn">▶ Start Alarm</button>
+  <button id="stopBtn" disabled>⏹ Stop</button>
+  <p id="status">Not running</p>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const intervalInput = document.getElementById('interval');
+    const statusEl = document.getElementById('status');
+
+    let timerId = null;
+    let wakeLock = null;
+    let audioCtx = null;
+
+    // --- Play a short beep using Web Audio API ---
+    function playAlarmTone() {
+      // Create AudioContext lazily (must be after user gesture)
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(800, audioCtx.currentTime); // Hz
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.4);
+    }
+
+    // --- Vibrate with a pattern: 200ms vibrate, 100ms pause, repeat 3 times ---
+    function triggerAlarm() {
+      // Sound
+      playAlarmTone();
+
+      // Vibration (pattern in milliseconds)
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200, 100, 200]);
+      }
+    }
+
+    // --- Acquire a screen wake lock (optional, but helpful) ---
+    async function requestWakeLock() {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => {
+          console.log('Wake lock released');
+        });
+      } catch (err) {
+        console.warn('Wake Lock not available:', err);
+      }
+    }
+
+    function releaseWakeLock() {
+      if (wakeLock) {
+        wakeLock.release().then(() => { wakeLock = null; });
+      }
+    }
+
+    // --- Start the repeating alarm ---
+    function startAlarm() {
+      const seconds = parseInt(intervalInput.value, 10) || 5;
+      if (seconds < 1) return;
+
+      // Trigger once immediately, then every <seconds> seconds
+      triggerAlarm();
+      timerId = setInterval(triggerAlarm, seconds * 1000);
+
+      requestWakeLock();
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      startBtn.classList.add('active');
+      statusEl.textContent = `Running every ${seconds}s`;
+    }
+
+    // --- Stop the alarm ---
+    function stopAlarm() {
+      if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+      releaseWakeLock();
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      startBtn.classList.remove('active');
+      statusEl.textContent = 'Stopped';
+    }
+
+    // --- Event listeners ---
+    startBtn.addEventListener('click', startAlarm);
+    stopBtn.addEventListener('click', stopAlarm);
+  </script>
+</body>
+</html>
