@@ -1,4 +1,4 @@
-AlarmLoop 🔁⏰
+# AlarmLoop 🔁⏰
 
 A lightweight Progressive Web App alarm that plays a tone and vibrates repeatedly at a custom interval – built for Android, works entirely in the browser.
 
